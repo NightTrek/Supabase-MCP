@@ -2,6 +2,10 @@
 
 A Model Context Protocol (MCP) server for interacting with Supabase databases. This server provides tools for querying tables and generating TypeScript types through the MCP interface.
 
+<a href="https://glama.ai/mcp/servers/wjmmfri9rj">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/wjmmfri9rj/badge" alt="Supabase Server MCP server" />
+</a>
+
 ## Features
 
 - **Query Tables**: Execute queries on any table with support for:

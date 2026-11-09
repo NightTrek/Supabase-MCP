@@ -217,7 +217,6 @@ class SupabaseServer {
                       ],
                     },
                     value: {
-                      type: "any",
                       description: "Value to compare against",
                     },
                   },

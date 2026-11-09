@@ -102,7 +102,7 @@ test('unavailable CLI returns installation guidance', async () => {
 test('SDK upgrade preserves tool discovery and local PostgREST query behavior', async () => {
   const requests = [];
   const api = createServer((req, res) => {
-    requests.push({ url: req.url, schema: req.headers['accept-profile'] });
+    requests.push({ url: req.url, schema: req.headers['accept-profile'], method: req.method, authorization: req.headers.authorization, apikey: req.headers.apikey });
     res.setHeader('Content-Type', 'application/json');
     res.end(JSON.stringify([{ id: 1, name: 'example' }]));
   });
@@ -119,12 +119,52 @@ test('SDK upgrade preserves tool discovery and local PostgREST query behavior', 
       assert.equal(result.isError, undefined);
       assert.deepEqual(JSON.parse(result.content[0].text), [{ id: 1, name: 'example' }]);
       assert.equal(requests.length, 1);
+      assert.equal(requests[0].method, 'GET');
+      assert.equal(requests[0].authorization, 'Bearer offline-test-key');
+      assert.equal(requests[0].apikey, 'offline-test-key');
       const url = new URL(requests[0].url, 'http://localhost');
       assert.equal(url.pathname, '/rest/v1/users');
       assert.equal(url.searchParams.get('select'), 'id,name');
       assert.equal(url.searchParams.get('id'), 'eq.1');
       assert.equal(url.searchParams.get('limit'), '25');
       assert.equal(requests[0].schema, 'api');
+    });
+  } finally {
+    await new Promise((resolve, reject) => api.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+
+test('tool input schemas compile as standard JSON Schema', async () => {
+  // Ajv is already supplied by the MCP SDK. Compile the whole schema, including
+  // the unrestricted where[].value node, rather than checking only tool names.
+  const { default: Ajv } = await import('ajv');
+  const ajv = new Ajv();
+  await withServer('http://localhost:54321', async (client) => {
+    const { tools } = await client.listTools();
+    for (const tool of tools) {
+      const validate = ajv.compile(tool.inputSchema);
+      if (tool.name === 'query_table') {
+        for (const value of ['example', 1, true, null, [], {}]) {
+          assert.equal(validate({ table: 'users', where: [{ column: 'id', operator: 'eq', value }] }), true);
+        }
+      }
+    }
+  });
+});
+
+test('PostgREST errors remain MCP tool errors', async () => {
+  const api = createServer((_req, res) => {
+    res.writeHead(403, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ code: '42501', message: 'permission denied for table users', details: null, hint: null }));
+  });
+  api.listen(0, '127.0.0.1');
+  await once(api, 'listening');
+  try {
+    await withServer(`http://127.0.0.1:${api.address().port}`, async (client) => {
+      const result = await client.callTool({ name: 'query_table', arguments: { table: 'users' } });
+      assert.equal(result.isError, true);
+      assert.match(result.content[0].text, /permission denied for table users/);
     });
   } finally {
     await new Promise((resolve, reject) => api.close((error) => error ? reject(error) : resolve()));

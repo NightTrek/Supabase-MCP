@@ -19,7 +19,7 @@ A Model Context Protocol (MCP) server for interacting with Supabase databases. T
 
 ## Prerequisites
 
-1. Node.js (v16 or higher)
+1. Node.js 22 or higher
 2. A Supabase project (either local or hosted)
 3. Supabase CLI (for type generation)
 
@@ -38,12 +38,14 @@ npm install
 
 3. Install the Supabase CLI (required for type generation):
 ```bash
-# Using npm
-npm install -g supabase
-
-# Or using Homebrew on macOS
+# Using Homebrew on macOS or Linux
 brew install supabase/tap/supabase
 ```
+
+The server executes the installed `supabase` binary directly from `PATH`, without
+`npx` or a shell. Alternatively, install a native CLI binary following the
+[official Supabase CLI instructions](https://supabase.com/docs/guides/local-development/cli/getting-started).
+Ensure the MCP server process can find the executable on its `PATH`.
 
 ## Configuration
 
@@ -185,6 +187,12 @@ supabase --version
 1. Check your schema and table names
 2. Verify column names in select and where clauses
 3. Ensure your service_role key has necessary permissions
+
+## Tests
+
+Run `npm ci` and `npm test` to build and run the offline MCP integration suite.
+Tests use a fake CLI and dummy credentials; they do not connect to a database.
+The test fixture currently requires a POSIX environment (Linux or macOS).
 
 ## Contributing
 

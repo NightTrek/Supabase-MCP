@@ -8,10 +8,10 @@ import {
   McpError,
 } from "@modelcontextprotocol/sdk/types.js";
 import { createClient } from "@supabase/supabase-js";
-import { exec } from 'child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'util';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_KEY;
@@ -161,7 +161,7 @@ class SupabaseServer {
 
   private async checkSupabaseCLI(): Promise<boolean> {
     try {
-      await execAsync('npx supabase --version');
+      await execFileAsync('supabase', ['--version'], { shell: false });
       return true;
     } catch (error) {
       return false;
@@ -300,22 +300,27 @@ class SupabaseServer {
             if (!hasSupabaseCLI) {
               throw new McpError(
                 ErrorCode.InternalError,
-                'Supabase CLI not found. Please install it with: npm install -g supabase'
+                'Supabase CLI not found. Install the Supabase CLI binary and make sure supabase is on PATH.'
               );
             }
 
             const { schema = 'public' } = request.params.arguments;
             
-            let command = 'npx supabase gen types typescript';
+            // Execute the installed CLI directly. Never pass caller-controlled
+            // values through a shell (including npx's intermediary shell).
+            const args = ['gen', 'types', 'typescript'];
             if (this.projectRef) {
-              command += ` --project-id "${this.projectRef}"`;
+              args.push(`--project-id=${this.projectRef}`);
             } else {
-              command += ' --local';
+              args.push('--local');
             }
-            command += ` --schema ${schema}`;
+            // Bind the value to its flag so leading dashes remain data too.
+            args.push(`--schema=${schema}`);
 
             try {
-              const { stdout, stderr } = await execAsync(command);
+              const { stdout, stderr } = await execFileAsync('supabase', args, {
+                shell: false,
+              });
               return {
                 content: [
                   {

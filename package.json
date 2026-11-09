@@ -18,11 +18,14 @@
     "test": "npm run build && node --test test/*.test.mjs"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "0.6.0",
-    "@supabase/supabase-js": "^2.47.6"
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@supabase/supabase-js": "^2.119.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.24",
     "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

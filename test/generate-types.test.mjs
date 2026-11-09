@@ -3,6 +3,8 @@ import { mkdtemp, writeFile, rm, access } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { test } from 'node:test';
+import { createServer } from 'node:http';
+import { once } from 'node:events';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
@@ -94,4 +96,37 @@ test('unavailable CLI returns installation guidance', async () => {
     assert.equal(result.isError, true);
     assert.match(result.content[0].text, /Supabase CLI not found/);
   }, 'missing');
+});
+
+
+test('SDK upgrade preserves tool discovery and local PostgREST query behavior', async () => {
+  const requests = [];
+  const api = createServer((req, res) => {
+    requests.push({ url: req.url, schema: req.headers['accept-profile'] });
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify([{ id: 1, name: 'example' }]));
+  });
+  api.listen(0, '127.0.0.1');
+  await once(api, 'listening');
+  try {
+    await withServer(`http://127.0.0.1:${api.address().port}`, async (client) => {
+      const tools = await client.listTools();
+      assert.deepEqual(tools.tools.map((tool) => tool.name), ['query_table', 'generate_types']);
+      const result = await client.callTool({ name: 'query_table', arguments: {
+        schema: 'api', table: 'users', select: 'id,name',
+        where: [{ column: 'id', operator: 'eq', value: 1 }],
+      } });
+      assert.equal(result.isError, undefined);
+      assert.deepEqual(JSON.parse(result.content[0].text), [{ id: 1, name: 'example' }]);
+      assert.equal(requests.length, 1);
+      const url = new URL(requests[0].url, 'http://localhost');
+      assert.equal(url.pathname, '/rest/v1/users');
+      assert.equal(url.searchParams.get('select'), 'id,name');
+      assert.equal(url.searchParams.get('id'), 'eq.1');
+      assert.equal(url.searchParams.get('limit'), '25');
+      assert.equal(requests[0].schema, 'api');
+    });
+  } finally {
+    await new Promise((resolve, reject) => api.close((error) => error ? reject(error) : resolve()));
+  }
 });
